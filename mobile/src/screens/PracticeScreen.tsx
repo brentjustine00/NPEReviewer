@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeInDown } from "react-native-reanimated";
@@ -14,6 +14,8 @@ export function PracticeScreen() {
   const navigation = useNavigation<any>();
   const { categories, history, activeAttemptId, questions, loadDashboard, beginPractice, beginFullExam } = useAppStore();
   const [errorDialog, setErrorDialog] = useState({ visible: false, message: "" });
+  const [startingText, setStartingText] = useState("");
+  const [starting, setStarting] = useState(false);
   const [resetDialog, setResetDialog] = useState<{ visible: boolean; action: null | (() => Promise<void>) }>({
     visible: false,
     action: null
@@ -72,6 +74,8 @@ export function PracticeScreen() {
             onPress={async () => {
               try {
                 await runWithResetWarning(async () => {
+                  setStartingText(`Loading ${cat.code} exam...`);
+                  setStarting(true);
                   await beginPractice(cat.id);
                   navigation.navigate("Exam");
                 });
@@ -80,6 +84,8 @@ export function PracticeScreen() {
                   visible: true,
                   message: e instanceof Error ? e.message : "Failed to start practice exam."
                 });
+              } finally {
+                setStarting(false);
               }
             }}
           />
@@ -91,6 +97,8 @@ export function PracticeScreen() {
         onPress={async () => {
           try {
             await runWithResetWarning(async () => {
+              setStartingText("Loading full exam...");
+              setStarting(true);
               await beginFullExam();
               navigation.navigate("Exam");
             });
@@ -99,6 +107,8 @@ export function PracticeScreen() {
               visible: true,
               message: e instanceof Error ? e.message : "Failed to start full exam."
             });
+          } finally {
+            setStarting(false);
           }
         }}
       >
@@ -120,11 +130,28 @@ export function PracticeScreen() {
         onConfirm={async () => {
           const action = resetDialog.action;
           setResetDialog({ visible: false, action: null });
-          if (action) {
+          if (!action) return;
+          try {
             await action();
+          } catch (e) {
+            setErrorDialog({
+              visible: true,
+              message: e instanceof Error ? e.message : "Failed to start exam."
+            });
+          } finally {
+            setStarting(false);
           }
         }}
       />
+      <Modal transparent visible={starting} animationType="fade">
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <ActivityIndicator size="large" color={colors.secondary} />
+            <Text style={styles.modalTitle}>Preparing Exam</Text>
+            <Text style={styles.modalText}>{startingText || "Loading questions..."}</Text>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -154,4 +181,23 @@ const styles = StyleSheet.create({
     elevation: 3
   },
   fullExamTxt: { color: "white", fontWeight: "900" }
+  ,
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(8, 20, 33, 0.45)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 330,
+    backgroundColor: colors.surface,
+    borderRadius: 18,
+    paddingVertical: 24,
+    paddingHorizontal: 18,
+    alignItems: "center"
+  },
+  modalTitle: { marginTop: 12, fontWeight: "900", fontSize: 18, color: colors.text },
+  modalText: { marginTop: 6, color: colors.muted, textAlign: "center" }
 });

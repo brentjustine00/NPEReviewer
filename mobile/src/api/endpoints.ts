@@ -25,11 +25,15 @@ export async function fetchQuestionsByNl(nlId: number, limit = 250) {
   return apiRequest<{ questions: Question[] }>(`/exam/questions/${nlId}?limit=${limit}`);
 }
 
-export async function startExam(mode: "practice" | "full", nlCategoryId?: number) {
-  return apiRequest<{ attempt_id: number; mode: string; total_questions: number; questions: Question[] }>(
+export async function fetchQuestionsByIds(ids: number[]) {
+  return apiRequest<{ questions: Question[] }>("/exam/questions/by-ids", "POST", { ids });
+}
+
+export async function startExam(mode: "practice" | "full", nlCategoryId?: number, initialLimit = 0) {
+  return apiRequest<{ attempt_id: number; mode: string; total_questions: number; question_ids: number[]; questions: Question[] }>(
     "/exam/start",
     "POST",
-    { mode, nl_category_id: nlCategoryId }
+    { mode, nl_category_id: nlCategoryId, initial_limit: initialLimit }
   );
 }
 

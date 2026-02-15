@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import Animated, { FadeInDown, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
@@ -18,6 +18,7 @@ export function DashboardScreen() {
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [errorDialog, setErrorDialog] = useState({ visible: false, message: "" });
   const [resetDialog, setResetDialog] = useState(false);
+  const [starting, setStarting] = useState(false);
 
   useEffect(() => {
     hydrateActiveExam();
@@ -40,6 +41,8 @@ export function DashboardScreen() {
       activeNlCategoryId: null,
       activeMode: null,
       questions: [],
+      expectedQuestionCount: 0,
+      questionLoadPending: false,
       answers: {},
       startedAt: null,
       remainingSeconds: null,
@@ -88,6 +91,7 @@ export function DashboardScreen() {
                 setResetDialog(true);
                 return;
               }
+              setStarting(true);
               await beginFullExam();
               navigation.navigate("Exam");
             } catch (e) {
@@ -95,6 +99,8 @@ export function DashboardScreen() {
                 visible: true,
                 message: e instanceof Error ? e.message : "Failed to start full exam."
               });
+            } finally {
+              setStarting(false);
             }
           }}
         >
@@ -136,6 +142,7 @@ export function DashboardScreen() {
         onConfirm={async () => {
           setResetDialog(false);
           try {
+            setStarting(true);
             await beginFullExam();
             navigation.navigate("Exam");
           } catch (e) {
@@ -143,6 +150,8 @@ export function DashboardScreen() {
               visible: true,
               message: e instanceof Error ? e.message : "Failed to start full exam."
             });
+          } finally {
+            setStarting(false);
           }
         }}
       />
@@ -152,6 +161,15 @@ export function DashboardScreen() {
         message={errorDialog.message}
         onConfirm={() => setErrorDialog({ visible: false, message: "" })}
       />
+      <Modal transparent visible={starting} animationType="fade">
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <ActivityIndicator size="large" color={colors.secondary} />
+            <Text style={styles.modalTitle}>Preparing Full Exam</Text>
+            <Text style={styles.modalText}>Loading first 5 questions and buffering the rest...</Text>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -201,5 +219,23 @@ const styles = StyleSheet.create({
   },
   resumeTxt: { color: colors.secondary, fontWeight: "800" },
   summaryText: { color: colors.text, fontWeight: "700" },
-  link: { marginTop: 8, color: colors.primary, fontWeight: "800" }
+  link: { marginTop: 8, color: colors.primary, fontWeight: "800" },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(8, 20, 33, 0.45)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 330,
+    backgroundColor: colors.surface,
+    borderRadius: 18,
+    paddingVertical: 24,
+    paddingHorizontal: 18,
+    alignItems: "center"
+  },
+  modalTitle: { marginTop: 12, fontWeight: "900", fontSize: 18, color: colors.text },
+  modalText: { marginTop: 6, color: colors.muted, textAlign: "center" }
 });

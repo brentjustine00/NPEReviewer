@@ -8,6 +8,7 @@ from ..models import AISuggestionLog, ExamAttempt, NLCategory
 from ..services.exam_service import (
     build_attempt_analytics,
     build_attempt_answer_review,
+    get_questions_by_ids,
     get_questions_for_nl,
     start_exam,
     submit_exam,
@@ -73,6 +74,7 @@ def start():
     data = request.get_json() or {}
     mode = (data.get("mode") or "practice").lower()
     nl_category_id = data.get("nl_category_id")
+    initial_limit = int(data.get("initial_limit") or 0)
 
     if mode not in {"practice", "full"}:
         return {"error": "mode must be practice or full"}, 400
@@ -85,12 +87,27 @@ def start():
             "error": "No questions available. Seed NP categories/questions first.",
             "mode": mode,
         }, 409
+    first_batch = questions[:initial_limit] if initial_limit > 0 else questions
+    question_ids = [q["id"] for q in questions]
     return {
         "attempt_id": attempt.id,
         "mode": attempt.mode,
         "total_questions": attempt.total_questions,
-        "questions": questions,
+        "question_ids": question_ids,
+        "questions": first_batch,
     }
+
+
+@exam_bp.post("/questions/by-ids")
+@jwt_required()
+def questions_by_ids():
+    data = request.get_json() or {}
+    ids = data.get("ids") or []
+    if not isinstance(ids, list):
+        return {"error": "ids must be a list"}, 400
+    # Keep request bounded to avoid accidental oversized payloads.
+    ids = [int(x) for x in ids[:100] if str(x).isdigit()]
+    return {"questions": get_questions_by_ids(ids)}
 
 
 @exam_bp.post("/submit")

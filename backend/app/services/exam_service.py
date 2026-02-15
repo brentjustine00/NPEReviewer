@@ -87,6 +87,14 @@ def get_questions_for_nl(nl_id: int, limit: int = PRACTICE_QUESTION_COUNT):
     questions = _pick_unique_by_prompt(pool, limit)
     return [serialize_question(q) for q in questions]
 
+def get_questions_by_ids(question_ids: list[int]):
+    if not question_ids:
+        return []
+    rows = Question.query.filter(Question.id.in_(question_ids)).all()
+    by_id = {q.id: q for q in rows}
+    ordered = [by_id[qid] for qid in question_ids if qid in by_id]
+    return [serialize_question(q) for q in ordered]
+
 
 def start_exam(user_id: int, mode: str, nl_category_id: int | None = None):
     count = FULL_EXAM_QUESTION_COUNT if mode == "full" else PRACTICE_QUESTION_COUNT

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 
 import { colors } from "../theme/colors";
@@ -15,6 +15,8 @@ export function LoginScreen() {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [alertState, setAlertState] = useState({ visible: false, title: "", message: "" });
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authLoadingText, setAuthLoadingText] = useState("Signing in...");
   const setState = useAppStore.setState;
 
   useEffect(() => {
@@ -36,6 +38,8 @@ export function LoginScreen() {
         setAlertState({ visible: true, title: "Missing Fields", message: "Enter your email and password to login." });
         return;
       }
+      setAuthLoadingText("Signing in...");
+      setAuthLoading(true);
       const res = await login(email, password);
       setAuthToken(res.access_token);
       await saveLastAccount({
@@ -53,6 +57,8 @@ export function LoginScreen() {
         activeNlCategoryId: null,
         activeMode: null,
         questions: [],
+        expectedQuestionCount: 0,
+        questionLoadPending: false,
         answers: {},
         startedAt: null,
         remainingSeconds: null
@@ -63,6 +69,8 @@ export function LoginScreen() {
         title: "Login Failed",
         message: e instanceof Error ? e.message : "Could not login. Check backend/API URL or credentials."
       });
+    } finally {
+      setAuthLoading(false);
     }
   };
 
@@ -76,6 +84,8 @@ export function LoginScreen() {
         });
         return;
       }
+      setAuthLoadingText("Creating account...");
+      setAuthLoading(true);
       await register(email, password, fullName);
       const res = await login(email, password);
       setAuthToken(res.access_token);
@@ -94,6 +104,8 @@ export function LoginScreen() {
         activeNlCategoryId: null,
         activeMode: null,
         questions: [],
+        expectedQuestionCount: 0,
+        questionLoadPending: false,
         answers: {},
         startedAt: null,
         remainingSeconds: null
@@ -104,6 +116,8 @@ export function LoginScreen() {
         title: "Register Failed",
         message: e instanceof Error ? e.message : "Could not register. Email may already exist or backend is unreachable."
       });
+    } finally {
+      setAuthLoading(false);
     }
   };
 
@@ -120,6 +134,8 @@ export function LoginScreen() {
       activeNlCategoryId: null,
       activeMode: null,
       questions: [],
+      expectedQuestionCount: 0,
+      questionLoadPending: false,
       answers: {},
       startedAt: null,
       remainingSeconds: null,
@@ -166,13 +182,21 @@ export function LoginScreen() {
           selectionColor={colors.primary}
           secureTextEntry
         />
-        <Pressable style={styles.button} onPress={onLogin}>
+        <Pressable style={[styles.button, authLoading && styles.buttonDisabled]} disabled={authLoading} onPress={onLogin}>
           <Text style={styles.buttonText}>Login</Text>
         </Pressable>
-        <Pressable style={[styles.button, styles.secondaryButton]} onPress={onRegister}>
+        <Pressable
+          style={[styles.button, styles.secondaryButton, authLoading && styles.buttonDisabled]}
+          disabled={authLoading}
+          onPress={onRegister}
+        >
           <Text style={styles.buttonText}>Register</Text>
         </Pressable>
-        <Pressable style={[styles.button, styles.outlineButton]} onPress={onOfflineDemo}>
+        <Pressable
+          style={[styles.button, styles.outlineButton, authLoading && styles.buttonDisabled]}
+          disabled={authLoading}
+          onPress={onOfflineDemo}
+        >
           <Text style={[styles.buttonText, styles.outlineText]}>Continue Offline Demo</Text>
         </Pressable>
       </View>
@@ -182,6 +206,15 @@ export function LoginScreen() {
         message={alertState.message}
         onConfirm={() => setAlertState({ visible: false, title: "", message: "" })}
       />
+      <Modal transparent visible={authLoading} animationType="fade">
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <ActivityIndicator size="large" color={colors.secondary} />
+            <Text style={styles.modalTitle}>{authLoadingText}</Text>
+            <Text style={styles.modalText}>Please wait...</Text>
+          </View>
+        </View>
+      </Modal>
     </LinearGradient>
   );
 }
@@ -221,6 +254,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.secondary,
     marginTop: 10
   },
+  buttonDisabled: { opacity: 0.6 },
   outlineButton: {
     backgroundColor: "transparent",
     borderWidth: 1,
@@ -228,5 +262,23 @@ const styles = StyleSheet.create({
     marginTop: 10
   },
   buttonText: { color: "white", fontWeight: "800" },
-  outlineText: { color: colors.primary }
+  outlineText: { color: colors.primary },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(8, 20, 33, 0.45)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 320,
+    backgroundColor: colors.surface,
+    borderRadius: 18,
+    paddingVertical: 24,
+    paddingHorizontal: 18,
+    alignItems: "center"
+  },
+  modalTitle: { marginTop: 12, fontWeight: "900", fontSize: 18, color: colors.text },
+  modalText: { marginTop: 6, color: colors.muted, textAlign: "center" }
 });

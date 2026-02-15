@@ -22,6 +22,8 @@ export function ExamScreen({ navigation }: Props) {
     categories,
     activeMode,
     activeNlCategoryId,
+    expectedQuestionCount,
+    questionLoadPending,
     remainingSeconds,
     loading,
     answerQuestion,
@@ -125,7 +127,7 @@ export function ExamScreen({ navigation }: Props) {
     >
       <View style={styles.header}>
         <Text style={styles.progressTxt}>
-          Question {index + 1}/{questions.length}
+          Question {index + 1}/{expectedQuestionCount || questions.length}
         </Text>
         <Text style={styles.nlCode}>{nlCode}</Text>
         <Text style={styles.timer}>
@@ -142,6 +144,12 @@ export function ExamScreen({ navigation }: Props) {
         selectedChoiceId={answers[question.id]}
         onSelect={(choiceId) => answerQuestion(question.id, choiceId)}
       />
+      {questionLoadPending ? (
+        <View style={styles.loadingMoreRow}>
+          <ActivityIndicator color={colors.secondary} />
+          <Text style={styles.loadingMoreText}>Loading more questions in background...</Text>
+        </View>
+      ) : null}
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 10) }]}>
         <Pressable
@@ -159,6 +167,10 @@ export function ExamScreen({ navigation }: Props) {
             onPress={() => setIndex((s) => Math.min(questions.length - 1, s + 1))}
           >
             <Text style={styles.btnTxt}>Next</Text>
+          </Pressable>
+        ) : questionLoadPending ? (
+          <Pressable style={[styles.btn, styles.btnDisabled]} disabled>
+            <Text style={styles.btnTxt}>Loading...</Text>
           </Pressable>
         ) : (
           <Pressable
@@ -221,6 +233,16 @@ const styles = StyleSheet.create({
   timer: { fontWeight: "900", color: colors.primary },
   progressBar: { marginVertical: 12, height: 8, backgroundColor: "#DBE8F6", borderRadius: 8 },
   progressFill: { height: 8, borderRadius: 8, backgroundColor: colors.secondary },
+  loadingMoreRow: {
+    marginTop: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8
+  },
+  loadingMoreText: {
+    color: colors.muted,
+    fontWeight: "700"
+  },
   footer: { marginTop: "auto", flexDirection: "row", justifyContent: "space-between", paddingTop: 14 },
   btn: {
     backgroundColor: colors.primary,

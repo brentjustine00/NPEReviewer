@@ -5,6 +5,7 @@
     "version": "1.0.0",
     "jsEngine": "hermes",
     "newArchEnabled": true,
+    "icon": "./assets/icon.png",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "plugins": [
@@ -27,7 +28,11 @@
       "bundleIdentifier": "com.brentjustine.npereviewer"
     },
     "android": {
-      "package": "com.brentjustine.npereviewer"
+      "package": "com.brentjustine.npereviewer",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0F766E"
+      }
     },
     "extra": {
       "eas": {

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-import { fetchAISuggestions, fetchHistory, fetchNLCategories, fetchQuestionsByNl, login, startExam, submitExam } from "../api/endpoints";
+import { fetchAISuggestions, fetchHistory, fetchNLCategories, fetchQuestionsByIds, fetchQuestionsByNl, login, startExam, submitExam } from "../api/endpoints";
 import { setAuthToken } from "../api/client";
 import type { ExamAttemptHistory, NLCategory, Question, SubmitResult } from "../types";
 import { clearActiveExam, loadActiveExam, loadHistory, loadQuestionBank, saveActiveExam, saveHistory, saveQuestionBank } from "../utils/cache";
@@ -8,6 +8,8 @@ import { clearActiveExam, loadActiveExam, loadHistory, loadQuestionBank, saveAct
 type AuthUser = { id: number; email: string; full_name: string } | null;
 const PRACTICE_QUESTION_COUNT = 100;
 const FULL_EXAM_QUESTION_COUNT = 500;
+const INITIAL_QUESTION_BATCH = 5;
+const BACKGROUND_QUESTION_CHUNK = 50;
 const PRACTICE_DURATION_SECONDS = 120 * 60;
 const FULL_EXAM_DURATION_SECONDS = 5 * 60 * 60;
 const OFFLINE_BANK_PER_NL_LIMIT = 250;
@@ -241,6 +243,9 @@ type AppState = {
     encouraging_feedback: string;
   } | null;
   loading: boolean;
+  questionLoadPending: boolean;
+  expectedQuestionCount: number;
+  pendingQuestionIds: number[];
   hydrateActiveExam: () => Promise<void>;
   loginDemo: () => Promise<void>;
   loadDashboard: () => Promise<void>;
@@ -267,6 +272,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   lastResult: null,
   aiSuggestion: null,
   loading: false,
+  questionLoadPending: false,
+  expectedQuestionCount: 0,
+  pendingQuestionIds: [],
 
   hydrateActiveExam: async () => {
     const scope = getCacheScope(get());
@@ -293,6 +301,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       activeNlCategoryId: cached.activeNlCategoryId,
       activeMode: cached.activeMode,
       questions: normalizedQuestions,
+      expectedQuestionCount: normalizedQuestions?.length || 0,
+      questionLoadPending: false,
+      pendingQuestionIds: [],
       answers: cached.answers,
       startedAt: cached.startedAt,
       remainingSeconds: cached.remainingSeconds
@@ -345,38 +356,87 @@ export const useAppStore = create<AppState>((set, get) => ({
       const nextState = {
         activeAttemptId: Date.now(),
         activeNlCategoryId: nlCategoryId,
-        activeMode: "practice",
+        activeMode: "practice" as const,
         questions: bankQuestions.length ? bankQuestions : buildOfflineQuestions(nlCategoryId, PRACTICE_QUESTION_COUNT),
+        expectedQuestionCount: PRACTICE_QUESTION_COUNT,
+        questionLoadPending: false,
+        pendingQuestionIds: [] as number[],
         answers: {},
         startedAt: Date.now(),
         remainingSeconds: PRACTICE_DURATION_SECONDS,
         lastResult: null,
         aiSuggestion: null
-      } as const;
+      };
       set(nextState);
       const scope = getCacheScope(get());
       if (scope) await saveActiveExam(nextState, scope);
       return;
     }
 
-    const started = await startExam("practice", nlCategoryId);
+    const started = await startExam("practice", nlCategoryId, INITIAL_QUESTION_BATCH);
     if (!started.questions || started.questions.length === 0) {
       throw new Error("No questions available for this NP category. Seed backend questions first.");
     }
+    const initialQuestions = started.questions || [];
+    const questionIds = started.question_ids || [];
+    const initialIds = new Set(initialQuestions.map((q) => q.id));
+    const pendingIds = questionIds.filter((id) => !initialIds.has(id));
     const nextState = {
       activeAttemptId: started.attempt_id,
       activeNlCategoryId: nlCategoryId,
-      activeMode: "practice",
-      questions: started.questions,
+      activeMode: "practice" as const,
+      questions: initialQuestions,
+      expectedQuestionCount: started.total_questions || questionIds.length || initialQuestions.length,
+      questionLoadPending: pendingIds.length > 0,
+      pendingQuestionIds: pendingIds,
       answers: {},
       startedAt: Date.now(),
       remainingSeconds: PRACTICE_DURATION_SECONDS,
       lastResult: null,
       aiSuggestion: null
-    } as const;
+    };
     set(nextState);
     const scope = getCacheScope(get());
     if (scope) await saveActiveExam(nextState, scope);
+
+    if (pendingIds.length > 0) {
+      void (async () => {
+        const chunkSize = BACKGROUND_QUESTION_CHUNK;
+        for (let i = 0; i < pendingIds.length; i += chunkSize) {
+          const idChunk = pendingIds.slice(i, i + chunkSize);
+          const chunkRes = await fetchQuestionsByIds(idChunk);
+          const chunk = chunkRes.questions || [];
+          set((s) => {
+            if (s.activeAttemptId !== started.attempt_id) return s;
+            const questions = [...s.questions, ...chunk];
+            const stillPending = s.pendingQuestionIds.filter((id) => !idChunk.includes(id));
+            const isLast = stillPending.length === 0;
+            const next = {
+              ...s,
+              questions,
+              pendingQuestionIds: stillPending,
+              questionLoadPending: !isLast
+            };
+            const nextScope = getCacheScope(s);
+            if (nextScope) {
+              saveActiveExam(
+                {
+                  activeAttemptId: next.activeAttemptId,
+                  activeNlCategoryId: next.activeNlCategoryId,
+                  activeMode: next.activeMode,
+                  questions: next.questions,
+                  answers: next.answers,
+                  startedAt: next.startedAt,
+                  remainingSeconds: next.remainingSeconds
+                },
+                nextScope
+              );
+            }
+            return next;
+          });
+        }
+      })();
+    }
   },
 
   beginFullExam: async () => {
@@ -386,38 +446,87 @@ export const useAppStore = create<AppState>((set, get) => ({
       const nextState = {
         activeAttemptId: Date.now(),
         activeNlCategoryId: null,
-        activeMode: "full",
+        activeMode: "full" as const,
         questions: bankQuestions.length ? bankQuestions : buildOfflineQuestions(undefined, FULL_EXAM_QUESTION_COUNT),
+        expectedQuestionCount: FULL_EXAM_QUESTION_COUNT,
+        questionLoadPending: false,
+        pendingQuestionIds: [] as number[],
         answers: {},
         startedAt: Date.now(),
         remainingSeconds: FULL_EXAM_DURATION_SECONDS,
         lastResult: null,
         aiSuggestion: null
-      } as const;
+      };
       set(nextState);
       const scope = getCacheScope(get());
       if (scope) await saveActiveExam(nextState, scope);
       return;
     }
 
-    const started = await startExam("full");
+    const started = await startExam("full", undefined, INITIAL_QUESTION_BATCH);
     if (!started.questions || started.questions.length === 0) {
       throw new Error("No questions available for full exam. Seed backend questions first.");
     }
+    const initialQuestions = started.questions || [];
+    const questionIds = started.question_ids || [];
+    const initialIds = new Set(initialQuestions.map((q) => q.id));
+    const pendingIds = questionIds.filter((id) => !initialIds.has(id));
     const nextState = {
       activeAttemptId: started.attempt_id,
       activeNlCategoryId: null,
-      activeMode: "full",
-      questions: started.questions,
+      activeMode: "full" as const,
+      questions: initialQuestions,
+      expectedQuestionCount: started.total_questions || questionIds.length || initialQuestions.length,
+      questionLoadPending: pendingIds.length > 0,
+      pendingQuestionIds: pendingIds,
       answers: {},
       startedAt: Date.now(),
       remainingSeconds: FULL_EXAM_DURATION_SECONDS,
       lastResult: null,
       aiSuggestion: null
-    } as const;
+    };
     set(nextState);
     const scope = getCacheScope(get());
     if (scope) await saveActiveExam(nextState, scope);
+
+    if (pendingIds.length > 0) {
+      void (async () => {
+        const chunkSize = BACKGROUND_QUESTION_CHUNK;
+        for (let i = 0; i < pendingIds.length; i += chunkSize) {
+          const idChunk = pendingIds.slice(i, i + chunkSize);
+          const chunkRes = await fetchQuestionsByIds(idChunk);
+          const chunk = chunkRes.questions || [];
+          set((s) => {
+            if (s.activeAttemptId !== started.attempt_id) return s;
+            const questions = [...s.questions, ...chunk];
+            const stillPending = s.pendingQuestionIds.filter((id) => !idChunk.includes(id));
+            const isLast = stillPending.length === 0;
+            const next = {
+              ...s,
+              questions,
+              pendingQuestionIds: stillPending,
+              questionLoadPending: !isLast
+            };
+            const nextScope = getCacheScope(s);
+            if (nextScope) {
+              saveActiveExam(
+                {
+                  activeAttemptId: next.activeAttemptId,
+                  activeNlCategoryId: next.activeNlCategoryId,
+                  activeMode: next.activeMode,
+                  questions: next.questions,
+                  answers: next.answers,
+                  startedAt: next.startedAt,
+                  remainingSeconds: next.remainingSeconds
+                },
+                nextScope
+              );
+            }
+            return next;
+          });
+        }
+      })();
+    }
   },
 
   answerQuestion: (questionId, choiceId) => {
@@ -548,6 +657,9 @@ export const useAppStore = create<AppState>((set, get) => ({
           activeNlCategoryId: null,
           activeMode: null,
           questions: [],
+          expectedQuestionCount: 0,
+          questionLoadPending: false,
+          pendingQuestionIds: [],
           answers: {},
           startedAt: null,
           remainingSeconds: null
@@ -580,6 +692,9 @@ export const useAppStore = create<AppState>((set, get) => ({
         activeNlCategoryId: null,
         activeMode: null,
         questions: [],
+        expectedQuestionCount: 0,
+        questionLoadPending: false,
+        pendingQuestionIds: [],
         answers: {},
         startedAt: null,
         remainingSeconds: null
