@@ -1,0 +1,34 @@
+{
+  "expo": {
+    "name": "NPEReviewer",
+    "slug": "npereviewer",
+    "version": "1.0.0",
+    "jsEngine": "hermes",
+    "newArchEnabled": true,
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 23,
+            "compileSdkVersion": 34,
+            "targetSdkVersion": 34
+          }
+        }
+      ]
+    ],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.brentjustine.npereviewer"
+    },
+    "android": {
+      "package": "com.brentjustine.npereviewer",
+      "versionCode": 1
+    }
+  }
+}

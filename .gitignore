@@ -1,0 +1,41 @@
+# Backend
+backend/.venv/
+backend/venv/
+backend/*.db
+backend/*.db-shm
+backend/*.db-wal
+backend/instance/
+backend/*.sqlite3
+backend/__pycache__/
+backend/app/__pycache__/
+backend/app/routes/__pycache__/
+backend/app/services/__pycache__/
+backend/.pytest_cache/
+backend/.mypy_cache/
+backend/.ruff_cache/
+backend/.coverage
+backend/htmlcov/
+
+# Mobile
+mobile/node_modules/
+mobile/.expo/
+mobile/.expo-shared/
+mobile/dist/
+mobile/android/app/build/
+mobile/ios/build/
+mobile/.gradle/
+.expo/
+.expo-shared/
+
+# Env
+*.env
+*.env.local
+*.env.production
+backend/.env
+mobile/.env
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
