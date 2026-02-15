@@ -144,12 +144,16 @@ export function LoginScreen() {
           value={fullName}
           onChangeText={setFullName}
           placeholder="Full Name (for register)"
+          placeholderTextColor={colors.muted}
+          selectionColor={colors.primary}
         />
         <TextInput
           style={styles.input}
           value={email}
           onChangeText={setEmail}
           placeholder="Email"
+          placeholderTextColor={colors.muted}
+          selectionColor={colors.primary}
           keyboardType="email-address"
           autoCapitalize="none"
         />
@@ -158,6 +162,8 @@ export function LoginScreen() {
           value={password}
           onChangeText={setPassword}
           placeholder="Password"
+          placeholderTextColor={colors.muted}
+          selectionColor={colors.primary}
           secureTextEntry
         />
         <Pressable style={styles.button} onPress={onLogin}>
@@ -200,7 +206,9 @@ const styles = StyleSheet.create({
     borderColor: "#D9E6F4",
     borderRadius: 14,
     paddingHorizontal: 14,
-    paddingVertical: 12
+    paddingVertical: 12,
+    color: colors.text,
+    backgroundColor: "#FFFFFF"
   },
   button: {
     marginTop: 16,

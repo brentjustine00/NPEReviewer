@@ -1,4 +1,5 @@
-export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:8000";
+const RAW_API_BASE_URL = (process.env.EXPO_PUBLIC_API_URL || "").trim();
+export const API_BASE_URL = RAW_API_BASE_URL.replace(/\/+$/, "") || "http://localhost:8000";
 
 let authToken: string | null = null;
 
@@ -10,11 +11,11 @@ type Method = "GET" | "POST";
 
 function buildBaseCandidates() {
   const list = [API_BASE_URL];
-  if (API_BASE_URL.includes("localhost") || API_BASE_URL.includes("127.0.0.1")) {
+  if (__DEV__ && (API_BASE_URL.includes("localhost") || API_BASE_URL.includes("127.0.0.1"))) {
     list.push(API_BASE_URL.replace("localhost", "10.0.2.2"));
     list.push(API_BASE_URL.replace("127.0.0.1", "10.0.2.2"));
   }
-  if (!list.some((x) => x.includes("10.0.2.2"))) {
+  if (__DEV__ && !list.some((x) => x.includes("10.0.2.2"))) {
     list.push("http://10.0.2.2:8000");
   }
   return [...new Set(list)];
@@ -25,6 +26,12 @@ export async function apiRequest<T>(
   method: Method = "GET",
   body?: Record<string, unknown>
 ): Promise<T> {
+  if (!__DEV__ && !RAW_API_BASE_URL) {
+    throw new Error(
+      "Missing EXPO_PUBLIC_API_URL in release build. Set it in EAS Environment Variables, then rebuild."
+    );
+  }
+
   const headers: Record<string, string> = {
     "Content-Type": "application/json"
   };
@@ -49,7 +56,8 @@ export async function apiRequest<T>(
   }
 
   if (!res) {
-    throw (lastError instanceof Error ? lastError : new Error("Network request failed"));
+    const fallback = lastError instanceof Error ? lastError.message : "Network request failed";
+    throw new Error(`Network request failed for ${API_BASE_URL}${path}. ${fallback}`);
   }
 
   let payload: unknown = null;
