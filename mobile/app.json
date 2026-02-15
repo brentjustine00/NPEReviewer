@@ -12,7 +12,7 @@
         "expo-build-properties",
         {
           "android": {
-            "minSdkVersion": 23,
+            "minSdkVersion": 24,
             "compileSdkVersion": 34,
             "targetSdkVersion": 34
           }
@@ -29,6 +29,11 @@
     "android": {
       "package": "com.brentjustine.npereviewer",
       "versionCode": 1
+    },
+    "extra": {
+      "eas": {
+        "projectId": "3d123213-ede1-479d-8ea6-7b62e4e31115"
+      }
     }
   }
 }
