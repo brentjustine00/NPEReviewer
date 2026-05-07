@@ -1,4 +1,4 @@
-# NLE Reviewer Mobile App
+# NPE Reviewer Mobile App
 
 Full-stack baseline for a modern NLE reviewer:
 
